@@ -67,7 +67,7 @@ At the default location, sshls owns only:
 - `~/.ssh/sshls.conf` — deterministic generated OpenSSH configuration
 - `~/.ssh/.sshls.lock` — concurrency lock
 
-Inventory writes are validated, serialized across processes, written through a temporary file, flushed, and atomically replaced. On Unix, newly created SSH directories use mode `0700`, and managed files use mode `0600`.
+Inventory writes are validated, serialized across processes, written through a temporary file, flushed, and atomically replaced. On Unix, newly created SSH directories use mode `0700`, and managed files use mode `0600`. On Windows, managed files receive a non-inherited ACL granting access only to the current user.
 
 Every successful mutation regenerates `sshls.conf`. If a machine or filesystem fails between the two atomic replacements, `sshls.toml` remains authoritative and `sshls config check` reports the stale fragment; `sshls config sync` repairs it.
 

@@ -142,6 +142,10 @@ fn atomic_write(path: &std::path::Path, contents: &[u8]) -> Result<()> {
         .as_file()
         .sync_all()
         .context("syncing temporary file")?;
+
+    #[cfg(windows)]
+    secure_windows_file(temporary.path())?;
+
     temporary
         .persist(path)
         .map_err(|error| error.error)
@@ -152,6 +156,41 @@ fn atomic_write(path: &std::path::Path, contents: &[u8]) -> Result<()> {
         .and_then(|directory| directory.sync_all())
         .with_context(|| format!("syncing {}", parent.display()))?;
 
+    Ok(())
+}
+
+#[cfg(windows)]
+fn secure_windows_file(path: &std::path::Path) -> Result<()> {
+    use std::process::{Command, Stdio};
+
+    let identity = Command::new("whoami")
+        .stdin(Stdio::null())
+        .output()
+        .context("determining the current Windows user with whoami.exe")?;
+    if !identity.status.success() {
+        anyhow::bail!("whoami.exe failed with {}", identity.status);
+    }
+    let identity =
+        String::from_utf8(identity.stdout).context("whoami.exe returned a non-UTF-8 user name")?;
+    let identity = identity.trim();
+    if identity.is_empty() {
+        anyhow::bail!("whoami.exe returned an empty user name");
+    }
+
+    let permissions = Command::new("icacls")
+        .arg(path)
+        .args(["/inheritance:r", "/grant:r"])
+        .arg(format!("{identity}:(F)"))
+        .stdin(Stdio::null())
+        .output()
+        .context("securing a managed file with icacls.exe")?;
+    if !permissions.status.success() {
+        anyhow::bail!(
+            "icacls.exe failed with {}: {}",
+            permissions.status,
+            String::from_utf8_lossy(&permissions.stderr).trim()
+        );
+    }
     Ok(())
 }
 

@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Rust ${{ matrix.rust }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+        rust:
+          - "1.85.0"
+          - "stable"
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install ${{ matrix.rust }} --profile minimal --component clippy,rustfmt --no-self-update
+
+      - name: Check formatting
+        run: rustup run ${{ matrix.rust }} cargo fmt --all -- --check
+
+      - name: Lint
+        run: rustup run ${{ matrix.rust }} cargo clippy --all-targets --all-features --locked -- -D warnings
+
+      - name: Test
+        run: rustup run ${{ matrix.rust }} cargo test --all-targets --locked
+
+      - name: Build release binary
+        run: rustup run ${{ matrix.rust }} cargo build --release --locked

@@ -140,7 +140,6 @@ fn relative_storage_override_is_rejected() {
 }
 
 #[test]
-#[cfg(unix)]
 fn config_check_verifies_real_openssh_resolution() {
     let temporary = tempfile::tempdir().unwrap();
     let directory = temporary.path();
