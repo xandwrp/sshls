@@ -6,11 +6,16 @@ It does not parse, replace, or rewrite your existing SSH configuration.
 
 ## Install
 
-Build with Rust 1.85 or newer:
+Install from crates.io with Rust 1.85 or newer:
 
 ```console
-cargo install --path .
+cargo install sshls --locked
 ```
+
+Alternatively, download a ready-to-run Windows or Linux archive from the
+[latest GitHub release](https://github.com/xandwr/sshls/releases/latest).
+
+To build a checkout directly, run `cargo install --path . --locked`.
 
 Generate the initial fragment:
 

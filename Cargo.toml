@@ -6,7 +6,19 @@ rust-version = "1.85"
 description = "A small, durable inventory for SSH destinations"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/xandwr/sshls"
-publish = false
+readme = "README.md"
+keywords = ["ssh", "openssh", "cli", "inventory"]
+categories = ["command-line-utilities", "config"]
+publish = ["crates-io"]
+include = [
+    "Cargo.toml",
+    "Cargo.lock",
+    "README.md",
+    "LICENSE-APACHE",
+    "LICENSE-MIT",
+    "src/**",
+    "tests/**",
+]
 
 [lints.rust]
 unsafe_code = "forbid"
