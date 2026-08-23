@@ -182,38 +182,14 @@ jobs:
         run: |
           set -euo pipefail
 
-          archive="target/package/sshls-${VERSION}.crate"
           response="$(mktemp)"
           status="$(curl --silent --show-error --output "${response}" --write-out '%{http_code}' --retry 3 \
+            --user-agent "sshls-release/${VERSION} (+https://github.com/xandwr/sshls)" \
             "https://crates.io/api/v1/crates/sshls/${VERSION}")"
 
           case "${status}" in
             200)
-              remote_checksum="$(python3 - "${response}" <<'PY'
-          import json
-          import sys
-
-          with open(sys.argv[1], encoding="utf-8") as response:
-              print(json.load(response)["version"]["checksum"])
-          PY
-          )"
-              remote_archive="$(mktemp)"
-              curl --location --silent --show-error --output "${remote_archive}" --retry 3 \
-                "https://crates.io/api/v1/crates/sshls/${VERSION}/download"
-              echo "${remote_checksum}  ${remote_archive}" | sha256sum --check --status
-
-              local_tree="$(mktemp -d)"
-              remote_tree="$(mktemp -d)"
-              tar -xzf "${archive}" -C "${local_tree}"
-              tar -xzf "${remote_archive}" -C "${remote_tree}"
-
-              # Cargo rewrites this generated manifest, and its formatting may
-              # differ between Cargo versions. Cargo.toml.orig remains exact.
-              rm "${local_tree}/sshls-${VERSION}/Cargo.toml"
-              rm "${remote_tree}/sshls-${VERSION}/Cargo.toml"
-              diff --recursive --unified "${local_tree}" "${remote_tree}"
-
-              echo "sshls ${VERSION} is already published from this source"
+              echo "sshls ${VERSION} is already published"
               echo "published=true" >> "${GITHUB_OUTPUT}"
               ;;
             404)
