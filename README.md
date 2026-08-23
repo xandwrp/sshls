@@ -106,3 +106,8 @@ These overrides are also what keep the test suite independent of a developer's r
 ## Deliberate exclusions
 
 There is no SSH implementation, database, daemon, TUI, secret storage, key generation, arbitrary option passthrough, wildcard host management, config importer, grouping layer, or export format beyond the human-readable TOML source file. This narrow boundary is the principal maintenance feature.
+
+## License
+
+Licensed under either of the [Apache License, Version 2.0](LICENSE-APACHE) or the
+[MIT license](LICENSE-MIT), at your option.
