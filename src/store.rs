@@ -102,7 +102,10 @@ impl Store {
 
 fn ensure_directory(paths: &AppPaths) -> Result<()> {
     if paths.ssh_dir.exists() {
-        return Ok(());
+        if paths.ssh_dir.is_dir() {
+            return Ok(());
+        }
+        anyhow::bail!("{} is not a directory", paths.ssh_dir.display());
     }
     fs::create_dir_all(&paths.ssh_dir)
         .with_context(|| format!("creating {}", paths.ssh_dir.display()))?;

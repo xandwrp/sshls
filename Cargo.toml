@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
 description = "A small, durable inventory for SSH destinations"
+publish = false
+
+[lints.rust]
+unsafe_code = "forbid"
 
 [dependencies]
 anyhow = "1.0.104"
@@ -18,4 +22,5 @@ wait-timeout = "0.2.1"
 [profile.release]
 lto = true
 codegen-units = 1
+panic = "abort"
 strip = true

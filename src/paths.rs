@@ -1,7 +1,7 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 
 #[derive(Clone, Debug)]
 pub struct AppPaths {
@@ -20,14 +20,20 @@ impl AppPaths {
     pub fn discover() -> Result<Self> {
         let home =
             dirs::home_dir().context("could not determine the current user's home directory")?;
-        let override_dir = env::var_os("SSHLS_DIR").map(PathBuf::from);
+        let override_dir = absolute_path_override("SSHLS_DIR")?;
         let custom_dir = override_dir.is_some();
         let ssh_dir = override_dir.unwrap_or_else(|| home.join(".ssh"));
         let ssh_binary = env::var_os("SSHLS_SSH_BIN")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("ssh"));
+        if ssh_binary.as_os_str().is_empty() {
+            bail!("SSHLS_SSH_BIN must not be empty");
+        }
         let mut paths = Self::from_parts(home.clone(), ssh_dir, ssh_binary, custom_dir);
-        paths.ssh_config_override = env::var_os("SSHLS_USER_CONFIG").map(PathBuf::from);
+        paths
+            .include_target()
+            .context("validating SSHLS_DIR for use in OpenSSH configuration")?;
+        paths.ssh_config_override = absolute_path_override("SSHLS_USER_CONFIG")?;
         paths.user_config = paths
             .ssh_config_override
             .clone()
@@ -54,16 +60,16 @@ impl AppPaths {
         }
     }
 
-    pub fn include_target(&self) -> String {
+    pub fn include_target(&self) -> Result<String> {
         if self.custom_dir {
             quote_path(&self.generated_config)
         } else {
-            "~/.ssh/sshls.conf".into()
+            Ok("~/.ssh/sshls.conf".into())
         }
     }
 
-    pub fn include_directive(&self) -> String {
-        format!("Include {}", self.include_target())
+    pub fn include_directive(&self) -> Result<String> {
+        Ok(format!("Include {}", self.include_target()?))
     }
 
     pub fn user_config_has_include(&self) -> Result<bool> {
@@ -75,7 +81,7 @@ impl AppPaths {
                     .with_context(|| format!("reading {}", self.user_config.display()));
             }
         };
-        let expected = self.include_target();
+        let expected = self.include_target()?;
         for line in contents.lines() {
             let line = strip_comment(line).trim();
             let Some((keyword, value)) = split_keyword(line) else {
@@ -84,7 +90,7 @@ impl AppPaths {
             if keyword.eq_ignore_ascii_case("host") || keyword.eq_ignore_ascii_case("match") {
                 return Ok(false);
             }
-            if keyword.eq_ignore_ascii_case("include") && value.eq_ignore_ascii_case(&expected) {
+            if keyword.eq_ignore_ascii_case("include") && path_text_eq(value, &expected) {
                 return Ok(true);
             }
         }
@@ -110,18 +116,61 @@ impl AppPaths {
     }
 }
 
-fn quote_path(path: &Path) -> String {
-    let value = path.to_string_lossy().replace('\\', "/");
-    if value.chars().any(char::is_whitespace) {
-        format!("\"{value}\"")
+fn absolute_path_override(name: &str) -> Result<Option<PathBuf>> {
+    let Some(path) = env::var_os(name).map(PathBuf::from) else {
+        return Ok(None);
+    };
+    if path.as_os_str().is_empty() || !path.is_absolute() {
+        bail!("{name} must be an absolute path");
+    }
+    Ok(Some(path))
+}
+
+fn quote_path(path: &Path) -> Result<String> {
+    let value = path
+        .to_str()
+        .with_context(|| format!("{} is not valid UTF-8", path.display()))?;
+    let value = if cfg!(windows) {
+        value.replace('\\', "/")
     } else {
-        value
+        value.to_owned()
+    };
+    if value.chars().any(char::is_control)
+        || value.contains('"')
+        || value.contains("${")
+        || value.contains(['*', '?', '[', ']'])
+        || (cfg!(unix) && value.contains('\\'))
+    {
+        bail!(
+            "{} contains characters that are unsafe in an OpenSSH Include directive",
+            path.display()
+        );
+    }
+    let value = value.replace('%', "%%");
+    if value.chars().any(char::is_whitespace) || value.contains('#') {
+        Ok(format!("\"{value}\""))
+    } else {
+        Ok(value)
     }
 }
 
 fn split_keyword(line: &str) -> Option<(&str, &str)> {
-    let index = line.find(char::is_whitespace)?;
-    Some((&line[..index], line[index..].trim()))
+    let index = line.find(|character: char| character.is_whitespace() || character == '=')?;
+    let keyword = &line[..index];
+    let remainder = line[index..].trim_start();
+    let value = remainder
+        .strip_prefix('=')
+        .unwrap_or(remainder)
+        .trim_start();
+    (!keyword.is_empty() && !value.is_empty()).then_some((keyword, value))
+}
+
+fn path_text_eq(left: &str, right: &str) -> bool {
+    if cfg!(windows) {
+        left.eq_ignore_ascii_case(right)
+    } else {
+        left == right
+    }
 }
 
 fn strip_comment(line: &str) -> &str {
@@ -153,7 +202,10 @@ mod tests {
             PathBuf::from("ssh"),
             false,
         );
-        assert_eq!(paths.include_directive(), "Include ~/.ssh/sshls.conf");
+        assert_eq!(
+            paths.include_directive().unwrap(),
+            "Include ~/.ssh/sshls.conf"
+        );
     }
 
     #[test]
@@ -165,8 +217,22 @@ mod tests {
             true,
         );
         assert_eq!(
-            paths.include_directive(),
+            paths.include_directive().unwrap(),
             "Include \"C:/Some Place/ssh/sshls.conf\""
+        );
+    }
+
+    #[test]
+    fn custom_location_quotes_comments_and_escapes_tokens() {
+        let paths = AppPaths::from_parts(
+            PathBuf::from("C:/Users/Me"),
+            PathBuf::from("C:/Hash#100%/ssh"),
+            PathBuf::from("ssh"),
+            true,
+        );
+        assert_eq!(
+            paths.include_directive().unwrap(),
+            "Include \"C:/Hash#100%%/ssh/sshls.conf\""
         );
     }
 
@@ -189,16 +255,39 @@ mod tests {
         );
         std::fs::write(
             &paths.user_config,
-            format!("Host unrelated\n    {}\n", paths.include_directive()),
+            format!(
+                "Host unrelated\n    {}\n",
+                paths.include_directive().unwrap()
+            ),
         )
         .unwrap();
         assert!(!paths.user_config_has_include().unwrap());
 
         std::fs::write(
             &paths.user_config,
-            format!("{} # managed\nHost unrelated\n", paths.include_directive()),
+            format!(
+                "{} # managed\nHost unrelated\n",
+                paths.include_directive().unwrap()
+            ),
         )
         .unwrap();
+        assert!(paths.user_config_has_include().unwrap());
+    }
+
+    #[test]
+    fn include_accepts_openssh_equals_syntax() {
+        let temporary = tempfile::tempdir().unwrap();
+        let paths = AppPaths::from_parts(
+            temporary.path().to_owned(),
+            temporary.path().to_owned(),
+            PathBuf::from("ssh"),
+            true,
+        );
+        let target = paths.include_target().unwrap();
+        std::fs::write(&paths.user_config, format!("Include = {target}\n")).unwrap();
+        assert!(paths.user_config_has_include().unwrap());
+
+        std::fs::write(&paths.user_config, format!("Include={target}\n")).unwrap();
         assert!(paths.user_config_has_include().unwrap());
     }
 }

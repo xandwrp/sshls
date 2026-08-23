@@ -211,9 +211,21 @@ impl Host {
                     self.name
                 );
             }
+            if identity.contains("${") {
+                bail!(
+                    "destination {:?} has an identity path containing OpenSSH environment expansion syntax",
+                    self.name
+                );
+            }
+            if cfg!(unix) && identity.contains('\\') {
+                bail!(
+                    "destination {:?} has an identity path containing a backslash, which OpenSSH may reinterpret",
+                    self.name
+                );
+            }
             if !Path::new(identity).is_absolute()
                 && !identity.starts_with("~/")
-                && !identity.starts_with("~\\")
+                && !(cfg!(windows) && identity.starts_with("~\\"))
             {
                 bail!(
                     "destination {:?} has a relative identity path; use an absolute path or one beginning with ~/",
@@ -360,6 +372,13 @@ mod tests {
 
         invalid.identity_file = Some("~/.ssh/id_ed25519".into());
         assert!(invalid.validate().is_ok());
+    }
+
+    #[test]
+    fn rejects_identity_environment_expansion() {
+        let mut invalid = host("safe");
+        invalid.identity_file = Some("~/.ssh/${KEY_FILE}".into());
+        assert!(invalid.validate().is_err());
     }
 
     #[test]

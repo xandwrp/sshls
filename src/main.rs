@@ -43,8 +43,14 @@ fn run() -> Result<()> {
             let inventory = store.load()?;
             print_hosts(&inventory.find(&text));
         }
-        Some(Command::Resolve { name }) => resolve(&paths, &name)?,
-        Some(Command::Test { name, timeout }) => test_connection(&paths, &name, timeout)?,
+        Some(Command::Resolve { name }) => {
+            store.load()?.get(&name)?;
+            resolve(&paths, &name)?;
+        }
+        Some(Command::Test { name, timeout }) => {
+            store.load()?.get(&name)?;
+            test_connection(&paths, &name, timeout)?;
+        }
         Some(Command::Add(args)) => {
             let name = args.name.clone();
             store.mutate(|inventory| {
@@ -96,7 +102,7 @@ fn run() -> Result<()> {
                     println!(
                         "To activate it, add this line to {}:\n{}",
                         paths.user_config.display(),
-                        paths.include_directive()
+                        paths.include_directive()?
                     );
                 }
             }

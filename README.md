@@ -97,8 +97,8 @@ The supported fields are intentionally limited to `name`, `hostname`, `user`, `p
 
 For isolated testing or portable setups:
 
-- `SSHLS_DIR` changes the directory containing the inventory, generated fragment, and lock.
-- `SSHLS_USER_CONFIG` changes the user config inspected for the include.
+- `SSHLS_DIR` changes the directory containing the inventory, generated fragment, and lock. It must be an absolute path.
+- `SSHLS_USER_CONFIG` changes the user config inspected for the include. It must be an absolute path.
 - `SSHLS_SSH_BIN` changes the SSH executable invoked by `resolve`, `test`, and `config check`.
 
 These overrides are also what keep the test suite independent of a developer's real SSH setup.

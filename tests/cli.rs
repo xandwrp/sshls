@@ -109,6 +109,37 @@ fn config_sync_is_repeatable() {
 }
 
 #[test]
+fn connection_commands_reject_unmanaged_names_before_running_ssh() {
+    let temporary = tempfile::tempdir().unwrap();
+    for command in ["resolve", "test"] {
+        let output = Command::new(env!("CARGO_BIN_EXE_sshls"))
+            .env("SSHLS_DIR", temporary.path())
+            .env("SSHLS_USER_CONFIG", temporary.path().join("config"))
+            .env("SSHLS_SSH_BIN", temporary.path().join("does-not-exist"))
+            .args([command, "missing"])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("unknown destination"));
+    }
+}
+
+#[test]
+fn relative_storage_override_is_rejected() {
+    let temporary = tempfile::tempdir().unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_sshls"))
+        .current_dir(temporary.path())
+        .env("SSHLS_DIR", "relative")
+        .arg("config")
+        .arg("sync")
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("must be an absolute path"));
+    assert!(!temporary.path().join("relative").exists());
+}
+
+#[test]
 #[cfg(unix)]
 fn config_check_verifies_real_openssh_resolution() {
     let temporary = tempfile::tempdir().unwrap();
