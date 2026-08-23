@@ -223,9 +223,9 @@ impl Host {
                     self.name
                 );
             }
-            if !Path::new(identity).is_absolute()
-                && !identity.starts_with("~/")
-                && !(cfg!(windows) && identity.starts_with("~\\"))
+            if !(Path::new(identity).is_absolute()
+                || identity.starts_with("~/")
+                || cfg!(windows) && identity.starts_with("~\\"))
             {
                 bail!(
                     "destination {:?} has a relative identity path; use an absolute path or one beginning with ~/",
