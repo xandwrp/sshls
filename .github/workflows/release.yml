@@ -184,7 +184,7 @@ jobs:
 
           response="$(mktemp)"
           status="$(curl --silent --show-error --output "${response}" --write-out '%{http_code}' --retry 3 \
-            --user-agent "sshls-release/${VERSION} (+https://github.com/xandwr/sshls)" \
+            --user-agent "sshls-release/${VERSION} (+https://github.com/xandwrp/sshls)" \
             "https://crates.io/api/v1/crates/sshls/${VERSION}")"
 
           case "${status}" in

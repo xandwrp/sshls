@@ -13,7 +13,7 @@ cargo install sshls --locked
 ```
 
 Alternatively, download a ready-to-run Windows or Linux archive from the
-[latest GitHub release](https://github.com/xandwr/sshls/releases/latest).
+[latest GitHub release](https://github.com/xandwrp/sshls/releases/latest).
 
 To build a checkout directly, run `cargo install --path . --locked`.
 
